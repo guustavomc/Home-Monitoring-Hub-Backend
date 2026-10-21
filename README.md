@@ -43,8 +43,7 @@ Spring Boot Service
 
 - Java 17 or higher
 - Maven 3.8+
-- PostgreSQL running locally (or via Docker)
-- Mosquitto MQTT broker running (locally or on a Raspberry Pi)
+- Docker with Docker Compose (runs Mosquitto and PostgreSQL)
 - [Home-Monitoring-Hub](https://github.com/guustavomc/Home-Monitoring-Hub) firmware flashed and publishing data
 
 ---
@@ -52,22 +51,24 @@ Spring Boot Service
 ## Getting Started
 
 1. **Clone the repository**
-   ```bash
-   git clone https://github.com/guustavomc/Home-Monitoring-Hub-Backend.git
-   cd Home-Monitoring-Hub-Backend/home-monitoring-hub
-   ```
+  ```bash
+  git clone https://github.com/guustavomc/Home-Monitoring-Hub-Backend.git
+  cd Home-Monitoring-Hub-Backend
+  ```
 
-2. **Create the PostgreSQL database**
-   ```sql
-   CREATE DATABASE home_monitoring;
-   ```
+2. **Start Mosquitto and PostgreSQL** (from the repo root)
+  ```bash
+  cp .env.example .env   # then set DB_PASSWORD
+  docker compose up -d
+  ```
 
 3. **Configure the application** (see [Configuration](#configuration))
 
 4. **Run the application** (from the `home-monitoring-hub/` folder)
-   ```bash
-   mvn spring-boot:run
-   ```
+  ```bash
+  cd home-monitoring-hub
+  mvn spring-boot:run
+  ```
 
 ---
 
