@@ -17,10 +17,6 @@ mvnw.cmd
 .project
 .settings/
 
-# Docker
-Docker
-.dockerignore
-
 # OS
 .DS_Store
 Thumbs.db
