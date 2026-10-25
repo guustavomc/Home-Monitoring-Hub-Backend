@@ -70,6 +70,22 @@ Spring Boot Service
   mvn spring-boot:run
   ```
 
+### Quick start on Windows
+
+`run-local.ps1` does steps 2–4 in one command. It starts Mosquitto and PostgreSQL, waits until the database is ready, loads `DB_USERNAME` / `DB_PASSWORD` from `.env` and runs the app. Run it from the repo root, after creating `.env`:
+
+```powershell
+.\run-local.ps1
+```
+
+If Mosquitto and PostgreSQL run on the Raspberry Pi instead of this PC, skip Docker and point the app at the Pi:
+
+```powershell
+.\run-local.ps1 -ServiceHost 192.168.1.136 -SkipDocker
+```
+
+In that case, `.env` on this PC must have the same `DB_PASSWORD` as the Pi.
+
 ---
 
 ## Configuration
