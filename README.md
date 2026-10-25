@@ -70,6 +70,22 @@ Spring Boot Service
   mvn spring-boot:run
   ```
 
+### Quick start on Windows
+
+`run-local.ps1` does steps 2–4 in one command. It starts Mosquitto and PostgreSQL, waits until the database is ready, loads `DB_USERNAME` / `DB_PASSWORD` from `.env` and runs the app. Run it from the repo root, after creating `.env`:
+
+```powershell
+.\run-local.ps1
+```
+
+If Mosquitto and PostgreSQL run on the Raspberry Pi instead of this PC, skip Docker and point the app at the Pi:
+
+```powershell
+.\run-local.ps1 -ServiceHost 192.168.1.136 -SkipDocker
+```
+
+In that case, `.env` on this PC must have the same `DB_PASSWORD` as the Pi.
+
 ---
 
 ## Configuration
@@ -89,13 +105,48 @@ mqtt.topic=${MQTT_TOPIC:home/sensors}
 mqtt.client-id=${MQTT_CLIENT_ID:home-monitoring-backend}
 ```
 
-Set the variables before running, for example:
+| Variable          | Example                                                 | Notes                                                              |
+|-------------------|---------------------------------------------------------|--------------------------------------------------------------------|
+| `DB_URL`          | `jdbc:postgresql://192.168.1.136:5432/home_monitoring` | IP of the machine running Docker Compose                           |
+| `DB_USERNAME`     | `postgres`                                              | Same as in `.env`                                                  |
+| `DB_PASSWORD`     | —                                                       | Same as in `.env`                                                  |
+| `MQTT_BROKER_URL` | `tcp://192.168.1.136:1883`                              | Same broker the firmware uses (`MQTT_BROKER` in its `config.h`)    |
+| `MQTT_TOPIC`      | `home/sensors`                                          | Default matches the firmware's `MQTT_TOPIC`                        |
+| `MQTT_CLIENT_ID`  | `home-monitoring-backend`                               | Must differ from the ESP32's client ID and from any other instance |
 
-```bash
-export DB_PASSWORD=your_db_password
-export MQTT_BROKER_URL=tcp://192.168.1.100:1883
+The broker accepts anonymous connections, so no MQTT username or password is needed.
+
+### Running on your PC against the Raspberry Pi
+
+During development you can run the app on your PC while Mosquitto and PostgreSQL run on the Pi. Replace `192.168.1.136` with your Pi's IP and run from the `home-monitoring-hub/` folder.
+
+**Windows (PowerShell):**
+
+```powershell
+$env:DB_URL = "jdbc:postgresql://192.168.1.136:5432/home_monitoring"
+$env:DB_PASSWORD = "<password from the Pi's .env>"
+$env:MQTT_BROKER_URL = "tcp://192.168.1.136:1883"
 mvn spring-boot:run
 ```
+
+**Linux / macOS (bash):**
+
+```bash
+export DB_URL=jdbc:postgresql://192.168.1.136:5432/home_monitoring
+export DB_PASSWORD='<password from .env>'
+export MQTT_BROKER_URL=tcp://192.168.1.136:1883
+mvn spring-boot:run
+```
+
+These variables only last for the current terminal session. You can also set them in your IDE's run configuration.
+
+When it's working, the log shows `Connected to tcp://192.168.1.136:1883, subscribed to home/sensors`, followed by a `Saved reading: {...}` line every 5 seconds (with DEBUG logging enabled). To check the saved rows on the Pi:
+
+```bash
+docker compose exec postgres psql -U postgres -d home_monitoring -c "SELECT count(*), max(timestamp) FROM readings;"
+```
+
+`max(timestamp)` is shown in UTC.
 
 > ⚠️ Never put real credentials in `application.properties`. Pass them as environment variables instead.
 
