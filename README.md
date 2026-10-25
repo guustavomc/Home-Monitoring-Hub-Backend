@@ -2,7 +2,7 @@
 
 Spring Boot service that subscribes to the MQTT sensor data published by the [Home-Monitoring-Hub](https://github.com/guustavomc/Home-Monitoring-Hub) firmware, saves the readings to PostgreSQL, and serves them through a REST API.
 
-> **Status:** early development. The project skeleton exists; the MQTT subscriber, persistence and REST API below are being implemented.
+> **Status:** early development. MQTT ingestion, PostgreSQL persistence and the REST API work; it currently runs on a development PC. See the [Roadmap](#roadmap) for what's next.
 
 ---
 
@@ -217,6 +217,22 @@ Timestamps are returned in UTC.
 
 ## Roadmap
 
-- **Layer 2 — Edge AI**: Anomaly detection model (TensorFlow Lite) running on Raspberry Pi
-- **Layer 3 — Observability**: Grafana dashboard reading directly from PostgreSQL, Docker Compose (Mosquitto + PostgreSQL + backend + Grafana), GitHub Actions CI
-- **Layer 4 — Documentation**: Architecture decision records, data flow diagrams
+### Done
+- [x] Docker Compose for Mosquitto and PostgreSQL
+- [x] MQTT ingestion: readings saved to PostgreSQL
+- [x] REST API: `/api/readings` (with `limit` / `from` / `to`) and `/api/readings/latest`
+
+### Next
+1. **Grafana**: added to Docker Compose, reading directly from PostgreSQL, with the data source and dashboard provisioned from files in this repo. Charts of temperature, light and pressure over time, where gaps also show when the ESP32 stopped publishing.
+2. **Tests and CI**: unit tests for message parsing, MockMvc tests for the API, Testcontainers for PostgreSQL (so `mvn package` works without `-DskipTests`), and a GitHub Actions workflow that runs them on every PR.
+3. **Run the backend in Docker**: a Dockerfile and a backend service in Docker Compose, so `docker compose up -d` starts the whole stack. Healthchecks and `depends_on` also remove the "broker must be up at startup" limitation.
+4. **Move to the Raspberry Pi**: run the stack 24/7 on the Pi instead of the development PC, so ingestion no longer depends on the PC being on or on its IP. Point the firmware's `MQTT_BROKER` at the Pi.
+
+### Later
+- **Flyway migrations** instead of `ddl-auto=update`, before the schema changes (e.g. a PIR column)
+- **MQTT authentication**: username and password in Mosquitto, the firmware and the backend
+- **Device status**: store the firmware's online/offline (MQTT last will) messages and show them in Grafana
+- **Alerts**: notifications when readings cross thresholds
+- **Retention**: aggregate old readings (per-minute or per-hour averages) to keep queries fast
+- **Edge AI**: anomaly detection model (TensorFlow Lite) running on the Raspberry Pi
+- **Documentation**: architecture decision records, data flow diagrams
