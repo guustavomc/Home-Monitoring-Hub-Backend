@@ -182,12 +182,14 @@ Any sensor value can be `null` when that sensor fails to read, so the numeric fi
 
 ## REST API
 
-| Method | Endpoint                                 | Description                                         |
-|--------|------------------------------------------|-----------------------------------------------------|
-| GET    | `/api/readings`                          | Returns the most recent readings (default 100)      |
-| GET    | `/api/readings?limit=N`                  | Returns the last N readings                         |
-| GET    | `/api/readings?from=...&to=...`          | Returns readings within a time range (ISO 8601)     |
-| GET    | `/api/readings/latest`                   | Returns the most recent reading                     |
+| Method | Endpoint                        | Description                                                  |
+|--------|---------------------------------|--------------------------------------------------------------|
+| GET    | `/api/readings`                 | Most recent readings, newest first (default 100, max 1000)   |
+| GET    | `/api/readings?limit=N`         | Last N readings (capped at 1000)                             |
+| GET    | `/api/readings?from=...&to=...` | Readings in a time range, newest first (`from`/`to` optional) |
+| GET    | `/api/readings/latest`          | Most recent reading, or 404 if there are none yet            |
+
+`from` and `to` are ISO 8601 instants, e.g. `2026-10-25T20:00:00Z`. Use the `Z` (UTC) form in URLs, or encode `+` as `%2B`.
 
 **Example response:**
 ```json
