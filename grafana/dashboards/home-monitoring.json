@@ -28,9 +28,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -40,11 +37,20 @@
                 "value": null
               },
               {
+                "color": "orange",
+                "value": 30
+              },
+              {
                 "color": "green",
                 "value": 50
               }
             ]
-          }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "max": 60
         },
         "overrides": []
       },
@@ -56,17 +62,8 @@
       },
       "id": 5,
       "options": {
-        "displayMode": "basic",
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "maxVizHeight": 300,
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "namePlacement": "auto",
+        "minVizHeight": 75,
+        "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -75,9 +72,9 @@
           "fields": "",
           "values": false
         },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "valueMode": "color"
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -107,7 +104,7 @@
         }
       ],
       "title": "Readings in the last 5 min",
-      "type": "bargauge"
+      "type": "gauge"
     },
     {
       "datasource": {
@@ -561,13 +558,13 @@
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Home Monitoring",
   "uid": "f7c599dd-5493-44e2-a103-0d8c99ade2cd",
-  "version": 10,
+  "version": 13,
   "refresh": "30s"
 }
