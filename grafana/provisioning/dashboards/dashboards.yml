@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: home-monitoring
+    folder: Home Monitoring
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards
