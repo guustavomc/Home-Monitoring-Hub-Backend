@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: PostgreSQL
+    uid: home-postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    user: ${PG_USER}
+    isDefault: true
+    jsonData:
+      database: home_monitoring
+      sslmode: disable
+      postgresVersion: 1500
+    secureJsonData:
+      password: ${PG_PASSWORD}
