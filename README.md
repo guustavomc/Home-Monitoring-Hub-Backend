@@ -19,7 +19,7 @@ Mosquitto Broker
     ▼
 Spring Boot Service
     │
-    ├──▶ PostgreSQL (persist readings)
+    ├──▶ PostgreSQL (persist readings) ──▶ Grafana (dashboard)
     │
     └──▶ REST API (GET /api/readings)
 ```
@@ -35,6 +35,7 @@ Spring Boot Service
 | MQTT Client  | Eclipse Paho            |
 | Database     | PostgreSQL              |
 | ORM          | Spring Data JPA         |
+| Dashboards   | Grafana                 |
 | Build tool   | Maven                   |
 
 ---
@@ -43,7 +44,7 @@ Spring Boot Service
 
 - Java 17 or higher
 - Maven 3.8+
-- Docker with Docker Compose (runs Mosquitto and PostgreSQL)
+- Docker with Docker Compose (runs Mosquitto, PostgreSQL and Grafana)
 - [Home-Monitoring-Hub](https://github.com/guustavomc/Home-Monitoring-Hub) firmware flashed and publishing data
 
 ---
@@ -56,9 +57,9 @@ Spring Boot Service
   cd Home-Monitoring-Hub-Backend
   ```
 
-2. **Start Mosquitto and PostgreSQL** (from the repo root)
+2. **Start Mosquitto, PostgreSQL and Grafana** (from the repo root)
   ```bash
-  cp .env.example .env   # then set DB_PASSWORD
+  cp .env.example .env   # then set DB_PASSWORD and GRAFANA_ADMIN_PASSWORD
   docker compose up -d
   ```
 
@@ -72,7 +73,7 @@ Spring Boot Service
 
 ### Quick start on Windows
 
-`run-local.ps1` does steps 2–4 in one command. It starts Mosquitto and PostgreSQL, waits until the database is ready, loads `DB_USERNAME` / `DB_PASSWORD` from `.env` and runs the app. Run it from the repo root, after creating `.env`:
+`run-local.ps1` does steps 2–4 in one command. It starts Mosquitto, PostgreSQL and Grafana, waits until the database is ready, loads `DB_USERNAME` / `DB_PASSWORD` from `.env` and runs the app. Run it from the repo root, after creating `.env`:
 
 ```powershell
 .\run-local.ps1
@@ -85,6 +86,19 @@ If Mosquitto and PostgreSQL run on the Raspberry Pi instead of this PC, skip Doc
 ```
 
 In that case, `.env` on this PC must have the same `DB_PASSWORD` as the Pi.
+
+### Grafana
+
+Open **http://localhost:3000** and log in as `admin` with the `GRAFANA_ADMIN_PASSWORD` from `.env`. The **Home Monitoring** dashboard (under Dashboards → Home Monitoring) shows:
+
+- temperature, humidity, light and pressure over time, averaged per minute. Minutes with no data show as gaps, e.g. when the ESP32 stopped publishing.
+- **Readings in the last 5 min**: about 60 when the ESP32 publishes every 5 s; turns red below 50.
+
+Grafana reads directly from PostgreSQL. The data source (`grafana/provisioning/datasources/`) and the dashboard (`grafana/dashboards/home-monitoring.json`) are provisioned from files, so they are recreated the same way on any machine.
+
+To change the dashboard: edit it in the Grafana UI and save, then **Export → Export as JSON** with "Export the dashboard to use in another instance" **off**, overwrite `grafana/dashboards/home-monitoring.json` and commit it. On restart, the file wins over UI changes.
+
+> Grafana only reads `GRAFANA_ADMIN_PASSWORD` the first time it starts. To change it later, use the Grafana UI (profile → Change password).
 
 ---
 
@@ -115,6 +129,14 @@ mqtt.client-id=${MQTT_CLIENT_ID:home-monitoring-backend}
 | `MQTT_CLIENT_ID`  | `home-monitoring-backend`                               | Must differ from the ESP32's client ID and from any other instance |
 
 The broker accepts anonymous connections, so no MQTT username or password is needed.
+
+Docker Compose reads its own settings from `.env` in the repo root (see `.env.example`):
+
+| Variable                 | Used by               | Notes                                                       |
+|--------------------------|-----------------------|-------------------------------------------------------------|
+| `DB_USERNAME`            | PostgreSQL, Grafana   | Defaults to `postgres`                                      |
+| `DB_PASSWORD`            | PostgreSQL, Grafana   | Required; only applied when the database is first created   |
+| `GRAFANA_ADMIN_PASSWORD` | Grafana               | Required; password for the `admin` user, set on first start |
 
 ### Running on your PC against the Raspberry Pi
 
@@ -221,14 +243,15 @@ Timestamps are returned in UTC.
 - [x] Docker Compose for Mosquitto and PostgreSQL
 - [x] MQTT ingestion: readings saved to PostgreSQL
 - [x] REST API: `/api/readings` (with `limit` / `from` / `to`) and `/api/readings/latest`
+- [x] Grafana: provisioned PostgreSQL data source and Home Monitoring dashboard
 
 ### Next
-1. **Grafana**: added to Docker Compose, reading directly from PostgreSQL, with the data source and dashboard provisioned from files in this repo. Charts of temperature, light and pressure over time, where gaps also show when the ESP32 stopped publishing.
-2. **Tests and CI**: unit tests for message parsing, MockMvc tests for the API, Testcontainers for PostgreSQL (so `mvn package` works without `-DskipTests`), and a GitHub Actions workflow that runs them on every PR.
-3. **Run the backend in Docker**: a Dockerfile and a backend service in Docker Compose, so `docker compose up -d` starts the whole stack. Healthchecks and `depends_on` also remove the "broker must be up at startup" limitation.
-4. **Move to the Raspberry Pi**: run the stack 24/7 on the Pi instead of the development PC, so ingestion no longer depends on the PC being on or on its IP. Point the firmware's `MQTT_BROKER` at the Pi.
+1. **Tests and CI**: unit tests for message parsing, MockMvc tests for the API, Testcontainers for PostgreSQL (so `mvn package` works without `-DskipTests`), and a GitHub Actions workflow that runs them on every PR.
+2. **Run the backend in Docker**: a Dockerfile and a backend service in Docker Compose, so `docker compose up -d` starts the whole stack. Healthchecks and `depends_on` also remove the "broker must be up at startup" limitation.
+3. **Move to the Raspberry Pi**: run the stack 24/7 on the Pi instead of the development PC, so ingestion no longer depends on the PC being on or on its IP. Point the firmware's `MQTT_BROKER` at the Pi.
 
 ### Later
+- **Read-only database user for Grafana** instead of the `postgres` superuser
 - **Flyway migrations** instead of `ddl-auto=update`, before the schema changes (e.g. a PIR column)
 - **MQTT authentication**: username and password in Mosquitto, the firmware and the backend
 - **Device status**: store the firmware's online/offline (MQTT last will) messages and show them in Grafana

@@ -36,11 +36,12 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "red",
+                "value": null
               },
               {
-                "color": "red",
-                "value": 80
+                "color": "green",
+                "value": 50
               }
             ]
           }
@@ -163,7 +164,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "pressurehpa"
         },
         "overrides": []
       },
@@ -272,7 +274,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "suffix: lx"
         },
         "overrides": []
       },
@@ -381,7 +384,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -490,7 +494,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "celsius"
         },
         "overrides": []
       },
@@ -563,5 +568,6 @@
   "timezone": "browser",
   "title": "Home Monitoring",
   "uid": "f7c599dd-5493-44e2-a103-0d8c99ade2cd",
-  "version": 10
+  "version": 10,
+  "refresh": "30s"
 }
