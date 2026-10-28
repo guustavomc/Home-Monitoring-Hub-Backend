@@ -26,6 +26,7 @@ public class MqttSubscriber implements MqttCallbackExtended {
     private final String clientId;
 
     private MqttClient client;
+    private volatile boolean subscribed = false;
 
     public MqttSubscriber(ReadingRepository repository,
                           ObjectMapper objectMapper,
@@ -57,6 +58,7 @@ public class MqttSubscriber implements MqttCallbackExtended {
     public void connectComplete(boolean reconnect, String serverURI) {
         try {
             client.subscribe(topic, 1);
+            subscribed = true;
             log.info("{} to {}, subscribed to {}", reconnect ? "Reconnected" : "Connected", serverURI, topic);
         } catch (MqttException e) {
             log.error("Failed to subscribe to {}", topic, e);
@@ -82,12 +84,17 @@ public class MqttSubscriber implements MqttCallbackExtended {
 
     @Override
     public void connectionLost(Throwable cause) {
+        subscribed = false;
         log.warn("MQTT connection lost, reconnecting automatically", cause);
     }
 
     @Override
     public void deliveryComplete(IMqttDeliveryToken token) {
         // Only used when publishing; this service only subscribes
+    }
+
+    public boolean isSubscribed() {
+        return subscribed;
     }
 
     @PreDestroy
