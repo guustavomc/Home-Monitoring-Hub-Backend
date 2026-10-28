@@ -1,5 +1,7 @@
 # Home-Monitoring-Hub-Backend
 
+![CI](https://github.com/guustavomc/Home-Monitoring-Hub-Backend/actions/workflows/ci.yml/badge.svg)
+
 Spring Boot service that subscribes to the MQTT sensor data published by the [Home-Monitoring-Hub](https://github.com/guustavomc/Home-Monitoring-Hub) firmware, saves the readings to PostgreSQL, and serves them through a REST API.
 
 > **Status:** early development. MQTT ingestion, PostgreSQL persistence and the REST API work; it currently runs on a development PC. See the [Roadmap](#roadmap) for what's next.
@@ -28,15 +30,17 @@ Spring Boot Service
 
 ## Tech Stack
 
-| Layer        | Technology              |
-|--------------|-------------------------|
-| Language     | Java 17+                |
-| Framework    | Spring Boot 4.x         |
-| MQTT Client  | Eclipse Paho            |
-| Database     | PostgreSQL              |
-| ORM          | Spring Data JPA         |
-| Dashboards   | Grafana                 |
-| Build tool   | Maven                   |
+| Layer       | Technology                                |
+|-------------|-------------------------------------------|
+| Language    | Java 17+                                  |
+| Framework   | Spring Boot 4.x                           |
+| MQTT Client | Eclipse Paho                              |
+| Database    | PostgreSQL                                |
+| ORM         | Spring Data JPA                           |
+| Dashboards  | Grafana                                   |
+| Testing     | JUnit 6, Mockito, MockMvc, Testcontainers |
+| CI          | GitHub Actions                            |
+| Build tool  | Maven                                     |
 
 ---
 
@@ -99,6 +103,27 @@ Grafana reads directly from PostgreSQL. The data source (`grafana/provisioning/d
 To change the dashboard: edit it in the Grafana UI and save, then **Export → Export as JSON** with "Export the dashboard to use in another instance" **off**, overwrite `grafana/dashboards/home-monitoring.json` and commit it. On restart, the file wins over UI changes.
 
 > Grafana only reads `GRAFANA_ADMIN_PASSWORD` the first time it starts. To change it later, use the Grafana UI (profile → Change password).
+
+---
+
+## Running the tests
+
+With Docker running, from `home-monitoring-hub/`:
+
+```bash
+mvn verify
+```
+
+| Test                           | Type                           | Covers                                                                          |
+|--------------------------------|--------------------------------|---------------------------------------------------------------------------------|
+| `ReadingMessageTest`           | Unit                           | JSON parsing: offset timestamps converted to UTC, `null` values, unknown fields |
+| `ReadingServiceTest`           | Unit (Mockito)                 | `limit` capping, 400 errors, which query runs                                   |
+| `ReadingControllerTest`        | Web slice (MockMvc)            | Status codes, JSON shape, 404 on `/latest`, invalid parameters                  |
+| `MqttIngestionIntegrationTest` | Integration (Testcontainers)   | Publishes over MQTT, checks the reading is saved and returned by the API        |
+
+The unit and web tests don't need Docker. The integration test starts its own PostgreSQL and Mosquitto containers, so it doesn't touch the Docker Compose data. The first run is slower while the images download. A single `MQTT connection lost` warning at the end is expected: the Mosquitto container stops before the app shuts down.
+
+[GitHub Actions](.github/workflows/ci.yml) runs the same `mvn verify` on every pull request and on every push to `main`.
 
 ---
 
@@ -244,9 +269,10 @@ Timestamps are returned in UTC.
 - [x] MQTT ingestion: readings saved to PostgreSQL
 - [x] REST API: `/api/readings` (with `limit` / `from` / `to`) and `/api/readings/latest`
 - [x] Grafana: provisioned PostgreSQL data source and Home Monitoring dashboard
+- [x] Tests and CI: unit, web and Testcontainers integration tests, run by GitHub Actions on every PR
 
 ### Next
-1. **Tests and CI**: unit tests for message parsing, MockMvc tests for the API, Testcontainers for PostgreSQL (so `mvn package` works without `-DskipTests`), and a GitHub Actions workflow that runs them on every PR.
+1. **Device status**: subscribe to the firmware's `home/hub/status` (`online` / `offline`, MQTT last will), store status changes, and show them in Grafana.
 2. **Run the backend in Docker**: a Dockerfile and a backend service in Docker Compose, so `docker compose up -d` starts the whole stack. Healthchecks and `depends_on` also remove the "broker must be up at startup" limitation.
 3. **Move to the Raspberry Pi**: run the stack 24/7 on the Pi instead of the development PC, so ingestion no longer depends on the PC being on or on its IP. Point the firmware's `MQTT_BROKER` at the Pi.
 
@@ -254,7 +280,6 @@ Timestamps are returned in UTC.
 - **Read-only database user for Grafana** instead of the `postgres` superuser
 - **Flyway migrations** instead of `ddl-auto=update`, before the schema changes (e.g. a PIR column)
 - **MQTT authentication**: username and password in Mosquitto, the firmware and the backend
-- **Device status**: store the firmware's online/offline (MQTT last will) messages and show them in Grafana
 - **Alerts**: notifications when readings cross thresholds
 - **Retention**: aggregate old readings (per-minute or per-hour averages) to keep queries fast
 - **Edge AI**: anomaly detection model (TensorFlow Lite) running on the Raspberry Pi
