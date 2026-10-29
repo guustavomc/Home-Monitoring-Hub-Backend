@@ -37,6 +37,7 @@ Spring Boot Service
 | MQTT Client | Eclipse Paho                              |
 | Database    | PostgreSQL                                |
 | ORM         | Spring Data JPA                           |
+| Migrations  | Flyway                                    |
 | Dashboards  | Grafana                                   |
 | Testing     | JUnit 6, Mockito, MockMvc, Testcontainers |
 | CI          | GitHub Actions                            |
@@ -136,7 +137,7 @@ The unit and web tests don't need Docker. The integration test starts its own Po
 spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/home_monitoring}
 spring.datasource.username=${DB_USERNAME:postgres}
 spring.datasource.password=${DB_PASSWORD:}
-spring.jpa.hibernate.ddl-auto=update
+spring.jpa.hibernate.ddl-auto=validate
 
 # MQTT Broker
 mqtt.broker.url=${MQTT_BROKER_URL:tcp://localhost:1883}
@@ -154,6 +155,17 @@ mqtt.client-id=${MQTT_CLIENT_ID:home-monitoring-backend}
 | `MQTT_CLIENT_ID`  | `home-monitoring-backend`                               | Must differ from the ESP32's client ID and from any other instance |
 
 The broker accepts anonymous connections, so no MQTT username or password is needed.
+
+### Database schema
+
+The schema is created by [Flyway](https://flywaydb.org/) from the SQL files in `src/main/resources/db/migration/`. On startup Flyway runs any migration the database hasn't applied yet (tracked in the `flyway_schema_history` table), and Hibernate only checks that the entities match (`ddl-auto=validate`), so the app won't start if they don't.
+
+To change the schema, add a new file named `V<next number>__<description>.sql`, e.g. `V2__create_device_status.sql`. Never edit a migration that has already run: Flyway stores a checksum of each one and refuses to start if it changes.
+
+> If your database was created before Flyway was added (by `ddl-auto=update`), Flyway refuses to start with "Found non-empty schema(s) without schema history table". Drop the old table so Flyway can recreate it (this deletes the saved readings):
+> ```bash
+> docker compose exec postgres psql -U postgres -d home_monitoring -c "DROP TABLE readings;"
+> ```
 
 Docker Compose reads its own settings from `.env` in the repo root (see `.env.example`):
 
@@ -270,6 +282,7 @@ Timestamps are returned in UTC.
 - [x] REST API: `/api/readings` (with `limit` / `from` / `to`) and `/api/readings/latest`
 - [x] Grafana: provisioned PostgreSQL data source and Home Monitoring dashboard
 - [x] Tests and CI: unit, web and Testcontainers integration tests, run by GitHub Actions on every PR
+- [x] Flyway migrations instead of `ddl-auto=update`
 
 ### Next
 1. **Device status**: subscribe to the firmware's `home/hub/status` (`online` / `offline`, MQTT last will), store status changes, and show them in Grafana.
@@ -278,7 +291,6 @@ Timestamps are returned in UTC.
 
 ### Later
 - **Read-only database user for Grafana** instead of the `postgres` superuser
-- **Flyway migrations** instead of `ddl-auto=update`, before the schema changes (e.g. a PIR column)
 - **MQTT authentication**: username and password in Mosquitto, the firmware and the backend
 - **Alerts**: notifications when readings cross thresholds
 - **Retention**: aggregate old readings (per-minute or per-hour averages) to keep queries fast
