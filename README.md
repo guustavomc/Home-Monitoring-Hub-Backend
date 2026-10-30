@@ -120,7 +120,9 @@ mvn verify
 | `ReadingMessageTest`           | Unit                           | JSON parsing: offset timestamps converted to UTC, `null` values, unknown fields |
 | `ReadingServiceTest`           | Unit (Mockito)                 | `limit` capping, 400 errors, which query runs                                   |
 | `ReadingControllerTest`        | Web slice (MockMvc)            | Status codes, JSON shape, 404 on `/latest`, invalid parameters                  |
+| `MqttHealthIndicatorTest`      | Unit (Mockito)                 | `mqtt` health is UP only while subscribed                                       |
 | `MqttIngestionIntegrationTest` | Integration (Testcontainers)   | Publishes over MQTT, checks the reading is saved and returned by the API        |
+|                                |                                | `/actuator/health` is UP, with `db` and `mqtt` UP                               |
 
 The unit and web tests don't need Docker. The integration test starts its own PostgreSQL and Mosquitto containers, so it doesn't touch the Docker Compose data. The first run is slower while the images download. A single `MQTT connection lost` warning at the end is expected: the Mosquitto container stops before the app shuts down.
 
@@ -264,6 +266,18 @@ Any sensor value can be `null` when that sensor fails to read, so the numeric fi
 ```
 
 Timestamps are returned in UTC.
+
+### Health check
+
+`GET /actuator/health` returns `200` with `"status": "UP"` when the app can save readings, or `503` with `"status": "DOWN"` when it can't. It lists each component:
+
+| Component    | UP when                                                               |
+|--------------|-----------------------------------------------------------------------|
+| `db`         | PostgreSQL answers a query                                            |
+| `mqtt`       | Connected to the broker and subscribed to the topic (details: `broker`, `topic`) |
+| `diskSpace`  | More than 10 MB free on the disk the app runs from                    |
+
+`mqtt` goes DOWN as soon as the broker connection drops and back UP once the automatic reconnect subscribes again. No other actuator endpoints are exposed over HTTP.
 
 ---
 

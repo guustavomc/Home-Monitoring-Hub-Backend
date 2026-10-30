@@ -97,6 +97,14 @@ public class MqttSubscriber implements MqttCallbackExtended {
         return subscribed;
     }
 
+    public String getBrokerUrl() {
+        return brokerUrl;
+    }
+
+    public String getTopic() {
+        return topic;
+    }
+
     @PreDestroy
     public void disconnect() throws MqttException {
         if (client != null && client.isConnected()) {

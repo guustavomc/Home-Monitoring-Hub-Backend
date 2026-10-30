@@ -88,6 +88,16 @@ class MqttIngestionIntegrationTest {
         await().atMost(Duration.ofSeconds(10)).until(() -> repository.count() == 1);
     }
 
+    @Test
+    void reportsHealthOfDatabaseAndMqtt() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components.db.status").value("UP"))
+                .andExpect(jsonPath("$.components.mqtt.status").value("UP"))
+                .andExpect(jsonPath("$.components.mqtt.details.topic").value("home/sensors"));
+    }
+
     private static String brokerUrl() {
         return "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883);
     }
