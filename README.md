@@ -120,7 +120,10 @@ mvn verify
 | `ReadingMessageTest`           | Unit                           | JSON parsing: offset timestamps converted to UTC, `null` values, unknown fields |
 | `ReadingServiceTest`           | Unit (Mockito)                 | `limit` capping, 400 errors, which query runs                                   |
 | `ReadingControllerTest`        | Web slice (MockMvc)            | Status codes, JSON shape, 404 on `/latest`, invalid parameters                  |
+| `MqttHealthIndicatorTest`      | Unit (Mockito)                 | `mqtt` health is UP only while subscribed                                       |
 | `MqttIngestionIntegrationTest` | Integration (Testcontainers)   | Publishes over MQTT, checks the reading is saved and returned by the API        |
+|                                |                                | `/actuator/health` is UP, with `db` and `mqtt` UP                               |
+| `MqttStartupWithoutBrokerTest` | Integration (Testcontainers)   | Starts with the broker down (`mqtt` DOWN), connects once it's up                |
 
 The unit and web tests don't need Docker. The integration test starts its own PostgreSQL and Mosquitto containers, so it doesn't touch the Docker Compose data. The first run is slower while the images download. A single `MQTT connection lost` warning at the end is expected: the Mosquitto container stops before the app shuts down.
 
@@ -265,6 +268,18 @@ Any sensor value can be `null` when that sensor fails to read, so the numeric fi
 
 Timestamps are returned in UTC.
 
+### Health check
+
+`GET /actuator/health` returns `200` with `"status": "UP"` when the app can save readings, or `503` with `"status": "DOWN"` when it can't. It lists each component:
+
+| Component    | UP when                                                               |
+|--------------|-----------------------------------------------------------------------|
+| `db`         | PostgreSQL answers a query                                            |
+| `mqtt`       | Connected to the broker and subscribed to the topic                   |
+| `diskSpace`  | More than 10 MB free on the disk the app runs from                    |
+
+`mqtt` goes DOWN as soon as the broker connection drops and back UP once the automatic reconnect subscribes again. The app also starts when the broker isn't up yet: it keeps retrying (1 s, 2 s, 4 s, … up to every 30 s) with `mqtt` DOWN until it connects. Only each component's status is shown, not its details (database type, free disk space, broker URL). To see them while debugging, set `management.endpoint.health.show-details=always`. No other actuator endpoints are exposed over HTTP.
+
 ---
 
 ## Related Repositories
@@ -283,10 +298,11 @@ Timestamps are returned in UTC.
 - [x] Grafana: provisioned PostgreSQL data source and Home Monitoring dashboard
 - [x] Tests and CI: unit, web and Testcontainers integration tests, run by GitHub Actions on every PR
 - [x] Flyway migrations instead of `ddl-auto=update`
+- [x] Health check: `/actuator/health` with `db` and `mqtt` components; the app starts and retries when the broker is down
 
 ### Next
 1. **Device status**: subscribe to the firmware's `home/hub/status` (`online` / `offline`, MQTT last will), store status changes, and show them in Grafana.
-2. **Run the backend in Docker**: a Dockerfile and a backend service in Docker Compose, so `docker compose up -d` starts the whole stack. Healthchecks and `depends_on` also remove the "broker must be up at startup" limitation.
+2. **Run the backend in Docker**: a Dockerfile and a backend service in Docker Compose, so `docker compose up -d` starts the whole stack.
 3. **Move to the Raspberry Pi**: run the stack 24/7 on the Pi instead of the development PC, so ingestion no longer depends on the PC being on or on its IP. Point the firmware's `MQTT_BROKER` at the Pi.
 
 ### Later

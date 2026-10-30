@@ -13,11 +13,17 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class MqttSubscriber implements MqttCallbackExtended {
 
     private static final Logger log = LoggerFactory.getLogger(MqttSubscriber.class);
+
+    private static final long FIRST_RETRY_DELAY_MS = 1_000;
+    private static final long MAX_RETRY_DELAY_MS = 30_000;
 
     private final ReadingRepository repository;
     private final ObjectMapper objectMapper;
@@ -25,8 +31,16 @@ public class MqttSubscriber implements MqttCallbackExtended {
     private final String topic;
     private final String clientId;
 
+    // Retries the first connect; Paho's automatic reconnect only covers connections lost after that
+    private final ScheduledExecutorService connector = Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "mqtt-connector");
+        thread.setDaemon(true);
+        return thread;
+    });
+
     private MqttClient client;
     private volatile boolean subscribed = false;
+    private volatile boolean stopping = false;
 
     public MqttSubscriber(ReadingRepository repository,
                           ObjectMapper objectMapper,
@@ -41,16 +55,31 @@ public class MqttSubscriber implements MqttCallbackExtended {
     }
 
     @PostConstruct
-    public void connect() throws MqttException {
+    public void start() throws MqttException {
         client = new MqttClient(brokerUrl, clientId, new MemoryPersistence());
         client.setCallback(this);
+        // Connect in the background so the app starts even when the broker is down
+        connector.execute(() -> connect(FIRST_RETRY_DELAY_MS));
+    }
 
+    private void connect(long retryDelayMs) {
+        if (stopping) {
+            return;
+        }
         MqttConnectOptions options = new MqttConnectOptions();
         options.setAutomaticReconnect(true);
         options.setCleanSession(true);
+        options.setConnectionTimeout(10);
 
-        log.info("Connecting to MQTT broker {}", brokerUrl);
-        client.connect(options);
+        try {
+            log.info("Connecting to MQTT broker {}", brokerUrl);
+            client.connect(options);
+        } catch (MqttException e) {
+            log.warn("Could not connect to MQTT broker {} ({}), retrying in {} s",
+                    brokerUrl, e.getMessage(), retryDelayMs / 1000);
+            long nextDelayMs = Math.min(retryDelayMs * 2, MAX_RETRY_DELAY_MS);
+            connector.schedule(() -> connect(nextDelayMs), retryDelayMs, TimeUnit.MILLISECONDS);
+        }
     }
 
     // Called on the first connect and after every automatic reconnect
@@ -97,8 +126,21 @@ public class MqttSubscriber implements MqttCallbackExtended {
         return subscribed;
     }
 
+    public String getBrokerUrl() {
+        return brokerUrl;
+    }
+
+    public String getTopic() {
+        return topic;
+    }
+
     @PreDestroy
-    public void disconnect() throws MqttException {
+    public void disconnect() throws MqttException, InterruptedException {
+        stopping = true;
+        connector.shutdownNow();
+        // Let a connect attempt that's already running finish before closing the client
+        connector.awaitTermination(15, TimeUnit.SECONDS);
+
         if (client != null && client.isConnected()) {
             client.disconnect();
         }
