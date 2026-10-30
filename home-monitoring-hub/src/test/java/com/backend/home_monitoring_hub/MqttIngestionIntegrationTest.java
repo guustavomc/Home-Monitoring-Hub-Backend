@@ -94,8 +94,7 @@ class MqttIngestionIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
                 .andExpect(jsonPath("$.components.db.status").value("UP"))
-                .andExpect(jsonPath("$.components.mqtt.status").value("UP"))
-                .andExpect(jsonPath("$.components.mqtt.details.topic").value("home/sensors"));
+                .andExpect(jsonPath("$.components.mqtt.status").value("UP"));
     }
 
     private static String brokerUrl() {

@@ -274,10 +274,10 @@ Timestamps are returned in UTC.
 | Component    | UP when                                                               |
 |--------------|-----------------------------------------------------------------------|
 | `db`         | PostgreSQL answers a query                                            |
-| `mqtt`       | Connected to the broker and subscribed to the topic (details: `broker`, `topic`) |
+| `mqtt`       | Connected to the broker and subscribed to the topic                   |
 | `diskSpace`  | More than 10 MB free on the disk the app runs from                    |
 
-`mqtt` goes DOWN as soon as the broker connection drops and back UP once the automatic reconnect subscribes again. No other actuator endpoints are exposed over HTTP.
+`mqtt` goes DOWN as soon as the broker connection drops and back UP once the automatic reconnect subscribes again. Only each component's status is shown, not its details (database type, free disk space, broker URL). To see them while debugging, set `management.endpoint.health.show-details=always`. No other actuator endpoints are exposed over HTTP.
 
 ---
 
