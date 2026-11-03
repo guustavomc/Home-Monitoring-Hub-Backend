@@ -11,9 +11,9 @@ Spring Boot service that subscribes to the MQTT sensor data published by the [Ho
 ## Architecture
 
 ```
-ESP32 (sensors)
+ESP32s (sensors, one or more)
     │
-    │  MQTT publish (home/sensors)
+    │  MQTT publish (home/sensors/<deviceId>)
     ▼
 Mosquitto Broker
     │
@@ -96,8 +96,9 @@ In that case, `.env` on this PC must have the same `DB_PASSWORD` as the Pi.
 
 Open **http://localhost:3000** and log in as `admin` with the `GRAFANA_ADMIN_PASSWORD` from `.env`. The **Home Monitoring** dashboard (under Dashboards → Home Monitoring) shows:
 
-- temperature, humidity, light and pressure over time, averaged per minute. Minutes with no data show as gaps, e.g. when the ESP32 stopped publishing.
-- **Readings in the last 5 min**: about 60 when the ESP32 publishes every 5 s; turns red below 50.
+- a **Device** dropdown at the top (multi-select, defaults to All), filled from the device ids in the database.
+- temperature, humidity, light and pressure over time, averaged per minute, one line per selected device. Minutes with no data show as gaps, e.g. when an ESP32 stopped publishing.
+- **Readings in the last 5 min**: total for the selected devices; about 60 per ESP32 publishing every 5 s. The red threshold (below 50) is set for a single device, so select one device to use it.
 
 Grafana reads directly from PostgreSQL. The data source (`grafana/provisioning/datasources/`) and the dashboard (`grafana/dashboards/home-monitoring.json`) are provisioned from files, so they are recreated the same way on any machine.
 
@@ -118,10 +119,11 @@ mvn verify
 | Test                           | Type                           | Covers                                                                          |
 |--------------------------------|--------------------------------|---------------------------------------------------------------------------------|
 | `ReadingMessageTest`           | Unit                           | JSON parsing: offset timestamps converted to UTC, `null` values, unknown fields |
-| `ReadingServiceTest`           | Unit (Mockito)                 | `limit` capping, 400 errors, which query runs                                   |
-| `ReadingControllerTest`        | Web slice (MockMvc)            | Status codes, JSON shape, 404 on `/latest`, invalid parameters                  |
+| `ReadingServiceTest`           | Unit (Mockito)                 | `limit` capping, 400 errors, which query runs (with and without `device`)       |
+| `ReadingControllerTest`        | Web slice (MockMvc)            | Status codes, JSON shape, 404 on `/latest`, `device` filter, `/devices`, invalid parameters |
 | `MqttHealthIndicatorTest`      | Unit (Mockito)                 | `mqtt` health is UP only while subscribed                                       |
-| `MqttIngestionIntegrationTest` | Integration (Testcontainers)   | Publishes over MQTT, checks the reading is saved and returned by the API        |
+| `MqttIngestionIntegrationTest` | Integration (Testcontainers)   | Publishes over MQTT, checks the reading is saved with its device id and returned by the API |
+|                                |                                | Readings from two devices stay apart; invalid device ids and the old `home/sensors` topic are ignored |
 |                                |                                | `/actuator/health` is UP, with `db` and `mqtt` UP                               |
 | `MqttStartupWithoutBrokerTest` | Integration (Testcontainers)   | Starts with the broker down (`mqtt` DOWN), connects once it's up                |
 
@@ -144,7 +146,7 @@ spring.jpa.hibernate.ddl-auto=validate
 
 # MQTT Broker
 mqtt.broker.url=${MQTT_BROKER_URL:tcp://localhost:1883}
-mqtt.topic=${MQTT_TOPIC:home/sensors}
+mqtt.topic=${MQTT_TOPIC:home/sensors/+}
 mqtt.client-id=${MQTT_CLIENT_ID:home-monitoring-backend}
 ```
 
@@ -154,8 +156,8 @@ mqtt.client-id=${MQTT_CLIENT_ID:home-monitoring-backend}
 | `DB_USERNAME`     | `postgres`                                              | Same as in `.env`                                                  |
 | `DB_PASSWORD`     | —                                                       | Same as in `.env`                                                  |
 | `MQTT_BROKER_URL` | `tcp://192.168.1.136:1883`                              | Same broker the firmware uses (`MQTT_BROKER` in its `config.h`)    |
-| `MQTT_TOPIC`      | `home/sensors`                                          | Default matches the firmware's `MQTT_TOPIC`                        |
-| `MQTT_CLIENT_ID`  | `home-monitoring-backend`                               | Must differ from the ESP32's client ID and from any other instance |
+| `MQTT_TOPIC`      | `home/sensors/+`                                        | Wildcard subscription; the last topic level is the device id (see [MQTT Message Format](#mqtt-message-format)) |
+| `MQTT_CLIENT_ID`  | `home-monitoring-backend`                               | Must differ from every ESP32's client ID and from any other instance |
 
 The broker accepts anonymous connections, so no MQTT username or password is needed.
 
@@ -163,7 +165,9 @@ The broker accepts anonymous connections, so no MQTT username or password is nee
 
 The schema is created by [Flyway](https://flywaydb.org/) from the SQL files in `src/main/resources/db/migration/`. On startup Flyway runs any migration the database hasn't applied yet (tracked in the `flyway_schema_history` table), and Hibernate only checks that the entities match (`ddl-auto=validate`), so the app won't start if they don't.
 
-To change the schema, add a new file named `V<next number>__<description>.sql`, e.g. `V2__create_device_status.sql`. Never edit a migration that has already run: Flyway stores a checksum of each one and refuses to start if it changes.
+`V2__add_device_id.sql` added the `device_id` column and set it to `esp32-1` on readings saved before it, so older data shows up in Grafana and the API as device `esp32-1`.
+
+To change the schema, add a new file named `V<next number>__<description>.sql`, e.g. `V3__create_device_status.sql`. Never edit a migration that has already run: Flyway stores a checksum of each one and refuses to start if it changes.
 
 > If your database was created before Flyway was added (by `ddl-auto=update`), Flyway refuses to start with "Found non-empty schema(s) without schema history table". Drop the old table so Flyway can recreate it (this deletes the saved readings):
 > ```bash
@@ -202,10 +206,10 @@ mvn spring-boot:run
 
 These variables only last for the current terminal session. You can also set them in your IDE's run configuration.
 
-When it's working, the log shows `Connected to tcp://192.168.1.136:1883, subscribed to home/sensors`, followed by a `Saved reading: {...}` line every 5 seconds (with DEBUG logging enabled). To check the saved rows on the Pi:
+When it's working, the log shows `Connected to tcp://192.168.1.136:1883, subscribed to home/sensors/+`, followed by a `Saved reading: {...}` line every 5 seconds per ESP32 (with DEBUG logging enabled). To check the saved rows on the Pi:
 
 ```bash
-docker compose exec postgres psql -U postgres -d home_monitoring -c "SELECT count(*), max(timestamp) FROM readings;"
+docker compose exec postgres psql -U postgres -d home_monitoring -c "SELECT device_id, count(*), max(timestamp) FROM readings GROUP BY device_id;"
 ```
 
 `max(timestamp)` is shown in UTC.
@@ -216,7 +220,13 @@ docker compose exec postgres psql -U postgres -d home_monitoring -c "SELECT coun
 
 ## MQTT Message Format
 
-The firmware publishes one JSON message per reading (every 5 s) to `home/sensors`:
+Each ESP32 publishes one JSON message per reading (every 5 s) to its own topic, `home/sensors/<deviceId>`, e.g. `home/sensors/livingroom`. The backend takes the device id from the topic, not from the payload:
+
+- The device id may contain letters, digits, `-` and `_`, up to 64 characters. Messages on a topic with any other id are logged and skipped.
+- Messages on the old `home/sensors` topic (no device id) aren't received. Reflash older firmware to publish on a device topic.
+- Each ESP32 needs its own MQTT client ID. Two boards with the same client ID keep disconnecting each other.
+
+The payload is the same for every device:
 
 ```json
 {
@@ -250,6 +260,9 @@ Any sensor value can be `null` when that sensor fails to read, so the numeric fi
 | GET    | `/api/readings?limit=N`         | Last N readings (capped at 1000)                             |
 | GET    | `/api/readings?from=...&to=...` | Readings in a time range, newest first (`from`/`to` optional) |
 | GET    | `/api/readings/latest`          | Most recent reading, or 404 if there are none yet            |
+| GET    | `/api/readings/devices`         | Device ids that have sent readings, sorted                   |
+
+`/api/readings` and `/api/readings/latest` also take `device`, e.g. `/api/readings/latest?device=livingroom`, to return only that device's readings. Without it they include all devices. It can be combined with `limit`, `from` and `to`.
 
 `from` and `to` are ISO 8601 instants, e.g. `2026-10-25T20:00:00Z`. Use the `Z` (UTC) form in URLs, or encode `+` as `%2B`.
 
@@ -257,6 +270,7 @@ Any sensor value can be `null` when that sensor fails to read, so the numeric fi
 ```json
 {
   "id": 1,
+  "deviceId": "livingroom",
   "timestamp": "2026-10-20T23:00:00Z",
   "temperature": 24.5,
   "humidity": 61.2,
@@ -299,6 +313,7 @@ Timestamps are returned in UTC.
 - [x] Tests and CI: unit, web and Testcontainers integration tests, run by GitHub Actions on every PR
 - [x] Flyway migrations instead of `ddl-auto=update`
 - [x] Health check: `/actuator/health` with `db` and `mqtt` components; the app starts and retries when the broker is down
+- [x] Multiple ESP32s: one topic per device (`home/sensors/<deviceId>`), `device` filter and `/api/readings/devices` in the API, one line per device in Grafana
 
 ### Next
 1. **Device status**: subscribe to the firmware's `home/hub/status` (`online` / `offline`, MQTT last will), store status changes, and show them in Grafana.
