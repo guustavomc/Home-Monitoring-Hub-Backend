@@ -6,13 +6,16 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "readings",
-       indexes = @Index(name = "idx_readings_timestamp", columnList = "timestamp"))
+       indexes = @Index(name = "idx_readings_device_timestamp", columnList = "device_id, timestamp"))
 
 public class Reading {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "device_id", nullable = false, length = 64)
+    private String deviceId;
 
     @Column(nullable = false)
     private Instant timestamp;
@@ -25,6 +28,10 @@ public class Reading {
 
     public Long getId() {
         return id;
+    }
+
+    public String getDeviceId() {
+        return deviceId;
     }
 
     public Instant getTimestamp() {
@@ -53,6 +60,10 @@ public class Reading {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public void setDeviceId(String deviceId) {
+        this.deviceId = deviceId;
     }
 
     public void setTimestamp(Instant timestamp) {

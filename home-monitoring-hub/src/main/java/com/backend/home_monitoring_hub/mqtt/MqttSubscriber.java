@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 @Component
 public class MqttSubscriber implements MqttCallbackExtended {
@@ -24,6 +25,8 @@ public class MqttSubscriber implements MqttCallbackExtended {
 
     private static final long FIRST_RETRY_DELAY_MS = 1_000;
     private static final long MAX_RETRY_DELAY_MS = 30_000;
+
+    private static final Pattern DEVICE_ID = Pattern.compile("[A-Za-z0-9_-]{1,64}");
 
     private final ReadingRepository repository;
     private final ObjectMapper objectMapper;
@@ -97,13 +100,18 @@ public class MqttSubscriber implements MqttCallbackExtended {
     @Override
     public void messageArrived(String topic, MqttMessage message) {
         String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
+        String deviceId = topic.substring(topic.lastIndexOf('/') + 1);
+        if (!DEVICE_ID.matcher(deviceId).matches()) {
+            log.warn("Ignoring message on topic {}: invalid device id", topic);
+            return;
+        }
         try {
             ReadingMessage reading = objectMapper.readValue(payload, ReadingMessage.class);
             if (reading.timestamp() == null) {
                 log.warn("Ignoring message without timestamp: {}", payload);
                 return;
             }
-            repository.save(reading.toEntity());
+            repository.save(reading.toEntity(deviceId));
             log.debug("Saved reading: {}", payload);
         } catch (Exception e) {
             // Never throw from here: Paho disconnects the client if this method throws

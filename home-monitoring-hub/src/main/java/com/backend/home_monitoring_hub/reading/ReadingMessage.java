@@ -13,8 +13,9 @@ public record ReadingMessage(
         Double pressure,
         Double altitude
 ) {
-    public Reading toEntity() {
+    public Reading toEntity(String deviceId) {
         Reading reading = new Reading();
+        reading.setDeviceId(deviceId);
         reading.setTimestamp(timestamp.toInstant());
         reading.setTemperature(temperature);
         reading.setHumidity(humidity);

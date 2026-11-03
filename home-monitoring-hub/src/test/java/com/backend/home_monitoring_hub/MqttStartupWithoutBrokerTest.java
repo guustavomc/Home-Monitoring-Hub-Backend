@@ -96,7 +96,7 @@ class MqttStartupWithoutBrokerTest {
         MqttClient publisher = new MqttClient("tcp://localhost:" + BROKER_PORT, "test-publisher", new MemoryPersistence());
         try {
             publisher.connect();
-            publisher.publish("home/sensors", payload.getBytes(StandardCharsets.UTF_8), 1, false);
+            publisher.publish("home/sensors/livingroom", payload.getBytes(StandardCharsets.UTF_8), 1, false);
             publisher.disconnect();
         } finally {
             publisher.close();

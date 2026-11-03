@@ -27,11 +27,11 @@ class ReadingControllerTest {
     private ReadingService service;
 
     private final ReadingResponse sample = new ReadingResponse(
-            1L, Instant.parse("2026-10-25T21:40:39Z"), 24.5, null, 237.5, 1010.67, 21.5);
+            1L, "livingroom", Instant.parse("2026-10-25T21:40:39Z"), 24.5, null, 237.5, 1010.67, 21.5);
 
     @Test
     void latestReturnsTheReading() throws Exception {
-        when(service.getLatest()).thenReturn(Optional.of(sample));
+        when(service.getLatest(null)).thenReturn(Optional.of(sample));
 
         mockMvc.perform(get("/api/readings/latest"))
                 .andExpect(status().isOk())
@@ -42,7 +42,7 @@ class ReadingControllerTest {
 
     @Test
     void latestReturns404WhenThereAreNoReadings() throws Exception {
-        when(service.getLatest()).thenReturn(Optional.empty());
+        when(service.getLatest(null)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/readings/latest"))
                 .andExpect(status().isNotFound());
@@ -50,13 +50,41 @@ class ReadingControllerTest {
 
     @Test
     void readingsUseDefaultLimit() throws Exception {
-        when(service.getReadings(ReadingService.DEFAULT_LIMIT, null, null)).thenReturn(List.of(sample));
+        when(service.getReadings(ReadingService.DEFAULT_LIMIT, null, null, null)).thenReturn(List.of(sample));
 
         mockMvc.perform(get("/api/readings"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
 
-        verify(service).getReadings(ReadingService.DEFAULT_LIMIT, null, null);
+        verify(service).getReadings(ReadingService.DEFAULT_LIMIT, null, null, null);
+    }
+
+    @Test
+    void readingsPassDeviceFilterToService() throws Exception {
+        when(service.getReadings(ReadingService.DEFAULT_LIMIT, null, null, "livingroom")).thenReturn(List.of(sample));
+
+        mockMvc.perform(get("/api/readings").param("device", "livingroom"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].deviceId").value("livingroom"));
+    }
+
+    @Test
+    void latestPassesDeviceFilterToService() throws Exception {
+        when(service.getLatest("livingroom")).thenReturn(Optional.of(sample));
+
+        mockMvc.perform(get("/api/readings/latest").param("device", "livingroom"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deviceId").value("livingroom"));
+    }
+
+    @Test
+    void devicesListsKnownDeviceIds() throws Exception {
+        when(service.getDeviceIds()).thenReturn(List.of("garage", "livingroom"));
+
+        mockMvc.perform(get("/api/readings/devices"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value("garage"))
+                .andExpect(jsonPath("$[1]").value("livingroom"));
     }
 
     @Test

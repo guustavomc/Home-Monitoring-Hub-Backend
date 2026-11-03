@@ -82,7 +82,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT count(*) AS \"Readings (last 5 min)\"\r\nFROM readings\r\nWHERE timestamp > now() - interval '5 minutes'",
+          "rawSql": "SELECT count(*) AS \"Readings (last 5 min)\"\r\nFROM readings\r\nWHERE timestamp > now() - interval '5 minutes'\r\n  AND device_id IN ($device)",
           "refId": "A",
           "sql": {
             "columns": [
@@ -190,9 +190,9 @@
       "targets": [
         {
           "editorMode": "code",
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  $__timeGroupAlias(timestamp, '1m', NULL),\r\n  avg(pressure) AS \"Pressure (hPa)\"\r\nFROM readings\r\nWHERE $__timeFilter(timestamp)\r\nGROUP BY 1\r\nORDER BY 1",
+          "rawSql": "SELECT\r\n  $__timeGroupAlias(timestamp, '1m', NULL),\r\n  device_id AS metric,\r\n  avg(pressure) AS \"Pressure (hPa)\"\r\nFROM readings\r\nWHERE $__timeFilter(timestamp) AND device_id IN ($device)\r\nGROUP BY 1, 2\r\nORDER BY 1",
           "refId": "A",
           "sql": {
             "columns": [
@@ -300,9 +300,9 @@
       "targets": [
         {
           "editorMode": "code",
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  $__timeGroupAlias(timestamp, '1m', NULL),\r\n  avg(light) AS \"Light (lx)\"\r\nFROM readings\r\nWHERE $__timeFilter(timestamp)\r\nGROUP BY 1\r\nORDER BY 1",
+          "rawSql": "SELECT\r\n  $__timeGroupAlias(timestamp, '1m', NULL),\r\n  device_id AS metric,\r\n  avg(light) AS \"Light (lx)\"\r\nFROM readings\r\nWHERE $__timeFilter(timestamp) AND device_id IN ($device)\r\nGROUP BY 1, 2\r\nORDER BY 1",
           "refId": "A",
           "sql": {
             "columns": [
@@ -410,9 +410,9 @@
       "targets": [
         {
           "editorMode": "code",
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  $__timeGroupAlias(timestamp, '1m', NULL),\r\n  avg(humidity) AS \"Humidity (%)\"\r\nFROM readings\r\nWHERE $__timeFilter(timestamp)\r\nGROUP BY 1\r\nORDER BY 1",
+          "rawSql": "SELECT\r\n  $__timeGroupAlias(timestamp, '1m', NULL),\r\n  device_id AS metric,\r\n  avg(humidity) AS \"Humidity (%)\"\r\nFROM readings\r\nWHERE $__timeFilter(timestamp) AND device_id IN ($device)\r\nGROUP BY 1, 2\r\nORDER BY 1",
           "refId": "Humidity",
           "sql": {
             "columns": [
@@ -524,9 +524,9 @@
             "uid": "home-postgres"
           },
           "editorMode": "code",
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\r\n  $__timeGroupAlias(timestamp, '1m', NULL),\r\n  avg(temperature) AS \"Temperature (°C)\"\r\nFROM readings\r\nWHERE $__timeFilter(timestamp)\r\nGROUP BY 1\r\nORDER BY 1",
+          "rawSql": "SELECT\r\n  $__timeGroupAlias(timestamp, '1m', NULL),\r\n  device_id AS metric,\r\n  avg(temperature) AS \"Temperature (°C)\"\r\nFROM readings\r\nWHERE $__timeFilter(timestamp) AND device_id IN ($device)\r\nGROUP BY 1, 2\r\nORDER BY 1",
           "refId": "Temperature",
           "sql": {
             "columns": [
@@ -555,7 +555,34 @@
   "schemaVersion": 41,
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "device",
+        "label": "Device",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "home-postgres"
+        },
+        "query": "SELECT DISTINCT device_id FROM readings ORDER BY 1",
+        "definition": "SELECT DISTINCT device_id FROM readings ORDER BY 1",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      }
+    ]
   },
   "time": {
     "from": "now-3h",

@@ -24,16 +24,20 @@ public class ReadingService {
         this.repository = repository;
     }
 
-    public List<ReadingResponse> getReadings(int limit, Instant from, Instant to) {
+    // device is optional: null (or blank) means readings from all devices
+    public List<ReadingResponse> getReadings(int limit, Instant from, Instant to, String device) {
         if (limit < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "limit must be at least 1");
         }
         Limit cappedLimit = Limit.of(Math.min(limit, MAX_LIMIT));
+        boolean allDevices = isBlank(device);
 
         List<Reading> readings;
         if (from == null && to == null) {
-            readings = repository.findAllByOrderByTimestampDesc(cappedLimit);
-        } 
+            readings = allDevices
+                    ? repository.findAllByOrderByTimestampDesc(cappedLimit)
+                    : repository.findByDeviceIdOrderByTimestampDesc(device, cappedLimit);
+        }
         else {
             Instant start = (from != null) ? from : Instant.EPOCH;
             // A day ahead, so readings from a device clock running slightly fast aren't cut off
@@ -41,13 +45,26 @@ public class ReadingService {
             if (start.isAfter(end)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "from must be before to");
             }
-            readings = repository.findByTimestampBetweenOrderByTimestampDesc(start, end, cappedLimit);
+            readings = allDevices
+                    ? repository.findByTimestampBetweenOrderByTimestampDesc(start, end, cappedLimit)
+                    : repository.findByDeviceIdAndTimestampBetweenOrderByTimestampDesc(device, start, end, cappedLimit);
         }
 
         return readings.stream().map(ReadingResponse::from).toList();
     }
 
-    public Optional<ReadingResponse> getLatest() {
-        return repository.findTopByOrderByTimestampDesc().map(ReadingResponse::from);
+    public Optional<ReadingResponse> getLatest(String device) {
+        Optional<Reading> latest = isBlank(device)
+                ? repository.findTopByOrderByTimestampDesc()
+                : repository.findTopByDeviceIdOrderByTimestampDesc(device);
+        return latest.map(ReadingResponse::from);
+    }
+
+    public List<String> getDeviceIds() {
+        return repository.findDeviceIds();
+    }
+
+    private static boolean isBlank(String device) {
+        return device == null || device.isBlank();
     }
 }

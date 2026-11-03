@@ -4,6 +4,7 @@ import java.time.Instant;
 
 public record ReadingResponse(
         Long id,
+        String deviceId,
         Instant timestamp,
         Double temperature,
         Double humidity,
@@ -15,6 +16,7 @@ public record ReadingResponse(
     public static ReadingResponse from(Reading reading) {
         return new ReadingResponse(
                 reading.getId(),
+                reading.getDeviceId(),
                 reading.getTimestamp(),
                 reading.getTemperature(),
                 reading.getHumidity(),
