@@ -23,15 +23,21 @@ public class ReadingController {
     public List<ReadingResponse> getReadings(
             @RequestParam(defaultValue = "" + ReadingService.DEFAULT_LIMIT) int limit,
             @RequestParam(required = false) Instant from,
-            @RequestParam(required = false) Instant to) {
-        return service.getReadings(limit, from, to);
+            @RequestParam(required = false) Instant to,
+            @RequestParam(required = false) String device) {
+        return service.getReadings(limit, from, to, device);
     }
 
     @GetMapping("/latest")
-    public ResponseEntity<ReadingResponse> getLatest() {
-        return service.getLatest()
+    public ResponseEntity<ReadingResponse> getLatest(@RequestParam(required = false) String device) {
+        return service.getLatest(device)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
-    
+
+    @GetMapping("/devices")
+    public List<String> getDevices() {
+        return service.getDeviceIds();
+    }
+
 }

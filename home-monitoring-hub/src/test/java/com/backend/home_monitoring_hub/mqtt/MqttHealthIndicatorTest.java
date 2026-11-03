@@ -25,7 +25,7 @@ class MqttHealthIndicatorTest {
     @BeforeEach
     void setUp() {
         lenient().when(subscriber.getBrokerUrl()).thenReturn("tcp://localhost:1883");
-        lenient().when(subscriber.getTopic()).thenReturn("home/sensors");
+        lenient().when(subscriber.getTopic()).thenReturn("home/sensors/+");
     }
 
     @Test
@@ -37,7 +37,7 @@ class MqttHealthIndicatorTest {
         assertThat(health.getStatus()).isEqualTo(Status.UP);
         assertThat(health.getDetails())
                 .containsEntry("broker", "tcp://localhost:1883")
-                .containsEntry("topic", "home/sensors");
+                .containsEntry("topic", "home/sensors/+");
     }
 
     @Test

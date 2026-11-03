@@ -11,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,14 +33,14 @@ class ReadingServiceTest {
     void capsLimitAtMaximum() {
         when(repository.findAllByOrderByTimestampDesc(any())).thenReturn(List.of());
 
-        service.getReadings(5000, null, null);
+        service.getReadings(5000, null, null, null);
 
         verify(repository).findAllByOrderByTimestampDesc(Limit.of(ReadingService.MAX_LIMIT));
     }
 
     @Test
     void rejectsLimitBelowOne() {
-        assertThatThrownBy(() -> service.getReadings(0, null, null))
+        assertThatThrownBy(() -> service.getReadings(0, null, null, null))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
     }
@@ -49,7 +50,7 @@ class ReadingServiceTest {
         Instant from = Instant.parse("2026-10-26T00:00:00Z");
         Instant to = Instant.parse("2026-10-25T00:00:00Z");
 
-        assertThatThrownBy(() -> service.getReadings(10, from, to))
+        assertThatThrownBy(() -> service.getReadings(10, from, to, null))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
     }
@@ -59,8 +60,47 @@ class ReadingServiceTest {
         Instant from = Instant.parse("2026-10-25T20:00:00Z");
         when(repository.findByTimestampBetweenOrderByTimestampDesc(any(), any(), any())).thenReturn(List.of());
 
-        service.getReadings(10, from, null);
+        service.getReadings(10, from, null, null);
 
         verify(repository).findByTimestampBetweenOrderByTimestampDesc(eq(from), any(), eq(Limit.of(10)));
+    }
+
+    @Test
+    void filtersByDevice() {
+        when(repository.findByDeviceIdOrderByTimestampDesc(any(), any())).thenReturn(List.of());
+
+        service.getReadings(10, null, null, "livingroom");
+
+        verify(repository).findByDeviceIdOrderByTimestampDesc("livingroom", Limit.of(10));
+    }
+
+    @Test
+    void filtersByDeviceAndTimeRange() {
+        Instant from = Instant.parse("2026-10-25T20:00:00Z");
+        Instant to = Instant.parse("2026-10-25T21:00:00Z");
+        when(repository.findByDeviceIdAndTimestampBetweenOrderByTimestampDesc(any(), any(), any(), any()))
+                .thenReturn(List.of());
+
+        service.getReadings(10, from, to, "livingroom");
+
+        verify(repository).findByDeviceIdAndTimestampBetweenOrderByTimestampDesc("livingroom", from, to, Limit.of(10));
+    }
+
+    @Test
+    void blankDeviceMeansAllDevices() {
+        when(repository.findAllByOrderByTimestampDesc(any())).thenReturn(List.of());
+
+        service.getReadings(10, null, null, " ");
+
+        verify(repository).findAllByOrderByTimestampDesc(Limit.of(10));
+    }
+
+    @Test
+    void latestFiltersByDevice() {
+        when(repository.findTopByDeviceIdOrderByTimestampDesc("garage")).thenReturn(Optional.empty());
+
+        assertThat(service.getLatest("garage")).isEmpty();
+
+        verify(repository).findTopByDeviceIdOrderByTimestampDesc("garage");
     }
 }

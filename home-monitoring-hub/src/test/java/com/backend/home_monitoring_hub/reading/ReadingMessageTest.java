@@ -18,8 +18,9 @@ class ReadingMessageTest {
                 "{\"timestamp\":\"2026-10-25T18:40:39-03:00\",\"temperature\":24.5}",
                 ReadingMessage.class);
 
-        Reading reading = message.toEntity();
+        Reading reading = message.toEntity("livingroom");
 
+        assertThat(reading.getDeviceId()).isEqualTo("livingroom");
         assertThat(reading.getTimestamp()).isEqualTo(Instant.parse("2026-10-25T21:40:39Z"));
         assertThat(reading.getTemperature()).isEqualTo(24.5);
     }
@@ -30,7 +31,7 @@ class ReadingMessageTest {
                 "{\"timestamp\":\"2026-10-25T18:40:39-03:00\",\"temperature\":24.5,\"humidity\":null}",
                 ReadingMessage.class);
 
-        Reading reading = message.toEntity();
+        Reading reading = message.toEntity("livingroom");
 
         assertThat(reading.getHumidity()).isNull();
         assertThat(reading.getLight()).isNull();   // missing field
