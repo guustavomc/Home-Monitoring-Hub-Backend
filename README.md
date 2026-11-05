@@ -42,15 +42,15 @@ Spring Boot Service
 | Testing     | JUnit 6, Mockito, MockMvc, Testcontainers |
 | CI          | GitHub Actions                            |
 | Build tool  | Maven                                     |
+| Deployment  | Docker, Docker Compose                    |
 
 ---
 
 ## Prerequisites
 
-- Java 17 or higher
-- Maven 3.8+
-- Docker with Docker Compose (runs Mosquitto, PostgreSQL and Grafana)
+- Docker with Docker Compose (runs Mosquitto, PostgreSQL, Grafana and the backend)
 - [Home-Monitoring-Hub](https://github.com/guustavomc/Home-Monitoring-Hub) firmware flashed and publishing data
+- For development only: Java 17 or higher and Maven 3.8+ (the Docker build brings its own)
 
 ---
 
@@ -62,23 +62,47 @@ Spring Boot Service
   cd Home-Monitoring-Hub-Backend
   ```
 
-2. **Start Mosquitto, PostgreSQL and Grafana** (from the repo root)
+2. **Create `.env`** (from the repo root), then set `DB_PASSWORD` and `GRAFANA_ADMIN_PASSWORD`
   ```bash
-  cp .env.example .env   # then set DB_PASSWORD and GRAFANA_ADMIN_PASSWORD
-  docker compose up -d
+  cp .env.example .env
   ```
 
-3. **Configure the application** (see [Configuration](#configuration))
-
-4. **Run the application** (from the `home-monitoring-hub/` folder)
+3. **Start everything**: Mosquitto, PostgreSQL, Grafana and the backend
   ```bash
-  cd home-monitoring-hub
-  mvn spring-boot:run
+  docker compose up -d --build
   ```
+  The first build takes a few minutes while Maven downloads the dependencies. The backend container waits for PostgreSQL, runs the Flyway migrations and connects to Mosquitto. Check it with `docker compose logs -f backend` (look for `subscribed to home/sensors/+`) and http://localhost:8080/actuator/health.
 
-### Quick start on Windows
+Inside Compose, the backend reaches the other services by name (`postgres`, `mosquitto`), so `DB_URL` and `MQTT_BROKER_URL` are set in `docker-compose.yml` and need no configuration. Its log is capped at 3 × 10 MB, so it doesn't fill the Raspberry Pi's SD card.
 
-`run-local.ps1` does steps 2–4 in one command. It starts Mosquitto, PostgreSQL and Grafana, waits until the database is ready, loads `DB_USERNAME` / `DB_PASSWORD` from `.env` and runs the app. Run it from the repo root, after creating `.env`:
+**After pulling new code**, rebuild and restart only the backend:
+```bash
+git pull
+docker compose up -d --build backend
+```
+
+> Docker Compose gives variables set in your shell or OS priority over `.env`. If a `DB_PASSWORD` environment variable is set (e.g. a Windows user variable) with a different value, the backend fails with `password authentication failed for user "postgres"` and Grafana can't reach the database. Remove that variable, or make it match `.env`, then run `docker compose up -d` again.
+
+### Running the backend with Maven (development)
+
+To run the app from your IDE or with Maven, start everything except the backend container, otherwise both fight over port 8080 and the MQTT client ID:
+
+```bash
+docker compose up -d mosquitto postgres grafana
+```
+
+Then configure the application (see [Configuration](#configuration)) and run it from the `home-monitoring-hub/` folder:
+
+```bash
+cd home-monitoring-hub
+mvn spring-boot:run
+```
+
+If the backend container is already running, stop it first with `docker compose stop backend`.
+
+#### Quick start on Windows
+
+`run-local.ps1` does this in one command. It starts Mosquitto, PostgreSQL and Grafana (not the backend container), waits until the database is ready, loads `DB_USERNAME` / `DB_PASSWORD` from `.env` and runs the app with Maven. Run it from the repo root, after creating `.env`:
 
 ```powershell
 .\run-local.ps1
@@ -135,7 +159,7 @@ The unit and web tests don't need Docker. The integration test starts its own Po
 
 ## Configuration
 
-`src/main/resources/application.properties` reads its settings from environment variables, with local defaults:
+`src/main/resources/application.properties` reads its settings from environment variables, with local defaults. In Docker Compose, the `backend` service sets them in `docker-compose.yml` (passwords come from `.env`); the table below is for running with Maven:
 
 ```properties
 # PostgreSQL
@@ -178,8 +202,8 @@ Docker Compose reads its own settings from `.env` in the repo root (see `.env.ex
 
 | Variable                 | Used by               | Notes                                                       |
 |--------------------------|-----------------------|-------------------------------------------------------------|
-| `DB_USERNAME`            | PostgreSQL, Grafana   | Defaults to `postgres`                                      |
-| `DB_PASSWORD`            | PostgreSQL, Grafana   | Required; only applied when the database is first created   |
+| `DB_USERNAME`            | PostgreSQL, Grafana, backend | Defaults to `postgres`                               |
+| `DB_PASSWORD`            | PostgreSQL, Grafana, backend | Required; PostgreSQL only applies it when the database is first created, so changing it later locks out Grafana and the backend |
 | `GRAFANA_ADMIN_PASSWORD` | Grafana               | Required; password for the `admin` user, set on first start |
 
 ### Running on your PC against the Raspberry Pi
@@ -314,11 +338,11 @@ Timestamps are returned in UTC.
 - [x] Flyway migrations instead of `ddl-auto=update`
 - [x] Health check: `/actuator/health` with `db` and `mqtt` components; the app starts and retries when the broker is down
 - [x] Multiple ESP32s: one topic per device (`home/sensors/<deviceId>`), `device` filter and `/api/readings/devices` in the API, one line per device in Grafana
+- [x] Backend in Docker: a Dockerfile and a `backend` service in Docker Compose, so `docker compose up -d` starts the whole stack
 
 ### Next
-1. **Device status**: subscribe to the firmware's `home/hub/status` (`online` / `offline`, MQTT last will), store status changes, and show them in Grafana.
-2. **Run the backend in Docker**: a Dockerfile and a backend service in Docker Compose, so `docker compose up -d` starts the whole stack.
-3. **Move to the Raspberry Pi**: run the stack 24/7 on the Pi instead of the development PC, so ingestion no longer depends on the PC being on or on its IP. Point the firmware's `MQTT_BROKER` at the Pi.
+1. **Move to the Raspberry Pi**: run the stack 24/7 on the Pi instead of the development PC, so ingestion no longer depends on the PC being on or on its IP. Point the firmware's `MQTT_BROKER` at the Pi.
+2. **Device status**: subscribe to the firmware's `home/hub/status` (`online` / `offline`, MQTT last will), store status changes, and show them in Grafana.
 
 ### Later
 - **Read-only database user for Grafana** instead of the `postgres` superuser

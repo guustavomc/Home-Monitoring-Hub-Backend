@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-    Starts Mosquitto and PostgreSQL with Docker Compose, then runs the backend.
+    Starts Mosquitto, PostgreSQL and Grafana with Docker Compose, then runs the
+    backend with Maven (for development; "docker compose up -d" runs it in a container instead).
 
 .DESCRIPTION
     Reads DB_USERNAME and DB_PASSWORD from .env, waits until PostgreSQL is
@@ -41,8 +42,9 @@ Get-Content $envFile | ForEach-Object {
 
 # ---- Start Mosquitto and PostgreSQL ----
 if (-not $SkipDocker) {
-    Write-Host "Starting Mosquitto and PostgreSQL..." -ForegroundColor Cyan
-    docker compose -f (Join-Path $repoRoot "docker-compose.yml") up -d
+    Write-Host "Starting Mosquitto, PostgreSQL and Grafana..." -ForegroundColor Cyan
+    # Not the backend service: the app runs from Maven below, and two backends would fight over port 8080 and the MQTT client ID
+    docker compose -f (Join-Path $repoRoot "docker-compose.yml") up -d mosquitto postgres grafana
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose up failed. Is Docker Desktop running?"
     }
